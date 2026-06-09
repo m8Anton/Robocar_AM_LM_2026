@@ -1,0 +1,23 @@
+{
+  "languages": {
+    "Python": {
+      "language_servers": ["basedpyright", "ruff"]
+    }
+  },
+  "lsp": {
+    "basedpyright": {
+      "settings": {
+        "python": {
+          "pythonPath": ".venv\\Scripts\\python.exe"
+        },
+        "basedpyright": {
+          "analysis": {
+            "typeCheckingMode": "basic",
+            "reportMissingImports": "warning",
+            "reportMissingTypeStubs": false
+          }
+        }
+      }
+    }
+  }
+}

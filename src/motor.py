@@ -1,117 +1,107 @@
 import board
 from adafruit_pca9685 import PCA9685
-from gpiozero import LineSensor
-import time
 import logging
 
-log = logging.getLogger(__name__)
+protokoll = logging.getLogger(__name__)
 
-# ── Hardware ────────────────────────────────────────────────
+# ── PWM-Hardware ────────────────────────────────────────────
 i2c = board.I2C()
-pca = PCA9685(i2c)
+pwm_modul = PCA9685(i2c)
 
-mitte = LineSensor(15)
-links  = LineSensor(14)
-rechts = LineSensor(23)
-
-# ── PID Parameter  ──────────────────────────────
-BASE_SPEED = 20
-Kp = 10.0
-Ki = 1.0
-Kd = 0.5
-
-MAX_CORRECTION = 10
 
 # ── Hilfsfunktionen ─────────────────────────────────────────
-def clamp(value: float, min_val: float, max_val: float) -> float:
-    return max(min_val, min(max_val, value))
+def begrenzen(wert: float, minimum: float, maximum: float) -> float:
+    """
+    Begrenzt einen Wert auf einen erlaubten Bereich.
+    """
+    return max(minimum, min(maximum, wert))
 
-def speed_to_duty(speed: float) -> int:
-    return int((abs(speed) * 0xFFFF) / 100)
 
-def set_motor(ch_fwd: int, ch_rev: int, speed: float) -> None:
-    speed = clamp(speed, -100, 100)
-    duty  = speed_to_duty(speed)
-    if speed >= 0:
-        pca.channels[ch_fwd].duty_cycle = 0
-        pca.channels[ch_rev].duty_cycle = duty
+def geschwindigkeit_zu_pwm(geschwindigkeit: float) -> int:
+    """
+    Wandelt eine Geschwindigkeit von 0 bis 100 Prozent
+    in einen PWM-Wert von 0 bis 65535 um.
+    """
+    return int((abs(geschwindigkeit) * 0xFFFF) / 100)
+
+
+def motor_setzen(kanal_vorwaerts: int, kanal_rueckwaerts: int, geschwindigkeit: float) -> None:
+    """
+    Steuert einen Motor über zwei PCA9685-Kanäle.
+
+    Positive Geschwindigkeit  → Motor dreht vorwärts
+    Negative Geschwindigkeit  → Motor dreht rückwärts
+    Geschwindigkeit = 0       → Motor steht
+    """
+    geschwindigkeit = begrenzen(geschwindigkeit, -100, 100)
+    pwm_wert = geschwindigkeit_zu_pwm(geschwindigkeit)
+
+    if geschwindigkeit >= 0:
+        pwm_modul.channels[kanal_vorwaerts].duty_cycle = 0
+        pwm_modul.channels[kanal_rueckwaerts].duty_cycle = pwm_wert
     else:
-        pca.channels[ch_fwd].duty_cycle = duty
-        pca.channels[ch_rev].duty_cycle = 0
+        pwm_modul.channels[kanal_vorwaerts].duty_cycle = pwm_wert
+        pwm_modul.channels[kanal_rueckwaerts].duty_cycle = 0
 
-def init() -> None:
-    log.info("PWM initialisieren")
-    pca.frequency = 50
-    for ch in range(8):
-        pca.channels[ch].duty_cycle = 0
 
-def stop_all() -> None:
-    for ch in range(8):
-        pca.channels[ch].duty_cycle = 0
+def initialisieren() -> None:
+    """
+    Initialisiert das PWM-Modul und stoppt sicherheitshalber alle Motoren.
+    """
+    protokoll.info("PWM-Modul wird initialisiert")
+    pwm_modul.frequency = 50
+    alle_motoren_stoppen()
 
-def drive(left_speed: float, right_speed: float) -> None:
-    set_motor(0, 1,  left_speed)
-    set_motor(6, 7, -left_speed)
-    set_motor(2, 3, -right_speed)
-    set_motor(4, 5,  right_speed)
 
-# ── PID Regler ───────────────────────────────────────────────
-def pid_line_follow(duration: float = 20) -> None:
-    integral   = 0.0
-    last_error = 0.0
-    last_time  = time.monotonic()
-    start_time = last_time
+def alle_motoren_stoppen() -> None:
+    """
+    Schaltet alle verwendeten PCA9685-Kanäle aus.
+    """
+    for kanal in range(8):
+        pwm_modul.channels[kanal].duty_cycle = 0
 
-    log.info("PID Linienfolge gestartet")
 
-    try:
-        while (time.monotonic() - start_time) < duration:
-            now = time.monotonic()
-            dt  = now - last_time
-            if dt == 0:
-                dt = 0.001
-            last_time = now
+# ── Motor-Zuordnung ─────────────────────────────────────────
+# Diese Zuordnung basiert auf deinem alten Code.
+# Wichtig: Wenn geradeaus_fahren() geradeaus fährt, passt diese Zuordnung.
 
-            # ── Sensorwerte (type-safe) ──────────────────
-            l = int(bool(links.is_active))
-            m = int(bool(mitte.is_active))
-            r = int(bool(rechts.is_active))
+def motor_vorne_links_setzen(geschwindigkeit: float) -> None:
+    """
+    Steuert den Motor vorne links.
+    """
+    motor_setzen(2, 3, -geschwindigkeit)
 
-            # ── Fehlerberechnung ─────────────────────────
-            error = float(r - l)
 
-            # Linie verloren → letzten Fehler beibehalten
-            if r == 0 and m == 0 and l == 0:
-                error = last_error
+def motor_vorne_rechts_setzen(geschwindigkeit: float) -> None:
+    """
+    Steuert den Motor vorne rechts.
+    """
+    motor_setzen(4, 5, geschwindigkeit)
 
-            # ── PID Terme ────────────────────────────────
-            integral   += error * dt
-            derivative  = (error - last_error) / dt
-            last_error  = error
 
-            correction = Kp * error + Ki * integral + Kd * derivative
-            correction  = clamp(correction, -MAX_CORRECTION, MAX_CORRECTION)
+def motor_hinten_links_setzen(geschwindigkeit: float) -> None:
+    """
+    Steuert den Motor hinten links.
+    """
+    motor_setzen(0, 1, geschwindigkeit)
 
-            # ── Motorsteuerung ───────────────────────────
-            left_speed  = clamp(BASE_SPEED - correction, 0, 100)
-            right_speed = clamp(BASE_SPEED + correction, 0, 100)
 
-            drive(left_speed, right_speed)
+def motor_hinten_rechts_setzen(geschwindigkeit: float) -> None:
+    """
+    Steuert den Motor hinten rechts.
+    """
+    motor_setzen(6, 7, -geschwindigkeit)
 
-            print(f"L={l} M={m} R={r} | ")
 
-            time.sleep(0.02)
+def fahren(linke_geschwindigkeit: float, rechte_geschwindigkeit: float) -> None:
+    """
+    Panzersteuerung:
 
-    except KeyboardInterrupt:
-        log.info("Abbruch durch Nutzer")
-    finally:
-        stop_all()
-        log.info("Motoren gestoppt")
+    linke_geschwindigkeit  = komplette linke Fahrzeugseite
+    rechte_geschwindigkeit = komplette rechte Fahrzeugseite
+    """
+    motor_vorne_links_setzen(linke_geschwindigkeit)
+    motor_hinten_links_setzen(linke_geschwindigkeit)
 
-# ── Main ─────────────────────────────────────────────────────
-def main() -> None:
-    init()
-    pid_line_follow(duration=60)
-
-if __name__ == "__main__":
-    main()
+    motor_vorne_rechts_setzen(rechte_geschwindigkeit)
+    motor_hinten_rechts_setzen(rechte_geschwindigkeit)
