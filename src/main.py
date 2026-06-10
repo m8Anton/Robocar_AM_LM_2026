@@ -8,7 +8,7 @@ def hauptprogramm() -> None:
     """
     Startet das Roboterprogramm. :)
     Ein weiser Mann meinte mal du sollst Code schreiben den nur du verstehst.
-    Denn wenn Ihn andere Verstehen dann bsit du ersetzbar. 
+    Denn wenn Ihn andere Verstehen dann bist du ersetzbar.
     Schütze dich und schreib Code den nur du verstehst:)
     """
     initialisieren()

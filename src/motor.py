@@ -46,9 +46,9 @@ def motor_setzen(kanal_vorwaerts: int, kanal_rueckwaerts: int, geschwindigkeit: 
 
 def initialisieren() -> None:
     """
-    Initialisiert das PWM-Modul und stoppt sicherheitshalber alle Motoren.
+    Initialisiert das PWM-Modul und stoppt aus sicherheit alle Motoren.
     """
-    protokoll.info("PWM-Modul wird initialisiert")
+    protokoll.info("PWM-Modul wird initialisiert!")
     pwm_modul.frequency = 50
     alle_motoren_stoppen()
 
@@ -62,8 +62,6 @@ def alle_motoren_stoppen() -> None:
 
 
 # ── Motor-Zuordnung ─────────────────────────────────────────
-# Diese Zuordnung basiert auf deinem alten Code.
-# Wichtig: Wenn geradeaus_fahren() geradeaus fährt, passt diese Zuordnung.
 
 def motor_vorne_links_setzen(geschwindigkeit: float) -> None:
     """

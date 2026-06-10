@@ -16,7 +16,7 @@ def sensor_sieht_linie(sensor: LineSensor) -> int:
     Gibt 1 zurück, wenn der Sensor die Linie sieht.
     Gibt 0 zurück, wenn der Sensor die Linie nicht sieht.
 
-    Die Konstante SENSOR_AKTIV_BEDEUTET_KEINE_LINIE kann die Logik umdrehen.
+    Die Variable SENSOR_AKTIV_BEDEUTET_KEINE_LINIE kann die Logik umdrehen.
     """
     rohwert = bool(sensor.is_active)
 

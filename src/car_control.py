@@ -8,8 +8,9 @@ protokoll = logging.getLogger(__name__)
 
 # ── Einstellungen ───────────────────────────────────────────
 GRUND_GESCHWINDIGKEIT = 25
-DREH_GESCHWINDIGKEIT = 30
-SUCH_GESCHWINDIGKEIT = 25
+DREH_GESCHWINDIGKEIT = 40
+SUCH_GESCHWINDIGKEIT = 40
+SUCH_INVENTIERTGESCHWINDIGKEIT = -20
 
 
 # ── Direkte Fahrfunktionen ──────────────────────────────────
@@ -41,14 +42,14 @@ def linke_motoren_suche() -> None:
     """
     Nur die linke Motorseite fährt langsam beim Suchen der Linie.
     """
-    fahren(SUCH_GESCHWINDIGKEIT, 0)
+    fahren(SUCH_GESCHWINDIGKEIT, SUCH_INVENTIERTGESCHWINDIGKEIT)
 
 
 def rechte_motoren_suche() -> None:
     """
     Nur die rechte Motorseite fährt langsam beim Suchen der Linie.
     """
-    fahren(0, SUCH_GESCHWINDIGKEIT)
+    fahren(SUCH_INVENTIERTGESCHWINDIGKEIT, SUCH_GESCHWINDIGKEIT)
 
 
 # ── Bang-Bang-Linienfolger ──────────────────────────────────
@@ -86,14 +87,14 @@ def linie_folgen(dauer: float = 60) -> None:
                 aktion = "GERADEAUS"
 
             # Der linke Sensor sieht die Linie.
-            # Laut deiner gewünschten Logik sollen dann die rechten Motoren fahren.
+            # die rechten Motoren fahren.
             elif links == 1 and rechts == 0:
                 rechte_motoren_an()
                 letzte_position = -1
                 aktion = "RECHTE MOTOREN AN, weil LINKS aktiv"
 
             # Der rechte Sensor sieht die Linie.
-            # Laut deiner gewünschten Logik sollen dann die linken Motoren fahren.
+            # die linken Motoren fahren.
             elif rechts == 1 and links == 0:
                 linke_motoren_an()
                 letzte_position = 1
@@ -107,7 +108,7 @@ def linie_folgen(dauer: float = 60) -> None:
                 aktion = "GERADEAUS, breite Linie oder Kreuzung"
 
             # Kein Sensor sieht die Linie.
-            # Der Roboter sucht abhängig davon, wo er die Linie zuletzt gesehen hat.
+            # Der Roboter sucht abhängig wo er die Linie zuletzt gesehen hat.
             else:
                 if letzte_position == -1:
                     # Zuletzt war links aktiv.
