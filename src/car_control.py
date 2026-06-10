@@ -7,10 +7,10 @@ from sensor import liniensensoren_lesen
 protokoll = logging.getLogger(__name__)
 
 # ── Einstellungen ───────────────────────────────────────────
-GRUND_GESCHWINDIGKEIT = 25
-DREH_GESCHWINDIGKEIT = 40
-SUCH_GESCHWINDIGKEIT = 40
-SUCH_INVENTIERTGESCHWINDIGKEIT = -20
+GRUND_GESCHWINDIGKEIT = 35
+DREH_GESCHWINDIGKEIT = 28
+SUCH_GESCHWINDIGKEIT = 28
+SUCH_INVENTIERTGESCHWINDIGKEIT = -25
 
 
 # ── Direkte Fahrfunktionen ──────────────────────────────────
@@ -27,7 +27,7 @@ def linke_motoren_an() -> None:
     Nur die linke Motorseite fährt.
     Die rechte Motorseite steht.
     """
-    fahren(DREH_GESCHWINDIGKEIT, 0)
+    fahren(DREH_GESCHWINDIGKEIT, SUCH_INVENTIERTGESCHWINDIGKEIT)
 
 
 def rechte_motoren_an() -> None:
@@ -35,7 +35,7 @@ def rechte_motoren_an() -> None:
     Nur die rechte Motorseite fährt.
     Die linke Motorseite steht.
     """
-    fahren(0, DREH_GESCHWINDIGKEIT)
+    fahren(SUCH_INVENTIERTGESCHWINDIGKEIT, SUCH_GESCHWINDIGKEIT)
 
 
 def linke_motoren_suche() -> None:
