@@ -29,9 +29,9 @@ def motor_setzen(kanal_vorwaerts: int, kanal_rueckwaerts: int, geschwindigkeit: 
     """
     Steuert einen Motor über zwei PCA9685-Kanäle.
 
-    Positive Geschwindigkeit  → Motor dreht vorwärts
-    Negative Geschwindigkeit  → Motor dreht rückwärts
-    Geschwindigkeit = 0       → Motor steht
+    Positive Geschwindigkeit  -> Motor dreht vorwärts
+    Negative Geschwindigkeit  -> Motor dreht rückwärts
+    Geschwindigkeit = 0       -> Motor steht
     """
     geschwindigkeit = begrenzen(geschwindigkeit, -100, 100)
     pwm_wert = geschwindigkeit_zu_pwm(geschwindigkeit)
