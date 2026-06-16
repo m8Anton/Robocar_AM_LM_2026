@@ -1,16 +1,20 @@
 # Linienfolgender Roboter
 
 Ein kleiner Roboter, der versucht, einer Linie zu folgen, ohne komplett die Orientierung zu verlieren.  
-Gebaut mit **Raspberry Pi**, **PCA9685 PWM-Modul**, **GPIOZero** und drei Liniensensoren.
+Gebaut mit Raspberry Pi, PCA9685 PWM-Modul, GPIOZero und drei Liniensensoren.
 
-Aktuell verwendet der Roboter **keinen PID-Regler**, sondern eine einfache **Bang-Bang-Steuerung**.  
-Heißt übersetzt: Er denkt nicht lange nach, sondern macht klare Ansagen.
+Aktuell verwendet der Roboter einen **proportionalen Regler (P-Regler)**.  
+Das heißt: Je länger er falsch fährt, desto mehr steuert er gegen.  
+Kein PID. Kein Bang-Bang. Einfach P — und das reicht meistens.
 
-```text
-Mitte sieht Linie  → geradeaus
-Links sieht Linie  → rechte Motoren an
-Rechts sieht Linie → linke Motoren an
-Keine Linie        → panisch in letzter bekannter Richtung suchen
+```
+Mitte sieht Linie              → geradeaus  
+Mitte + Links sieht Linie      → leicht nach links korrigieren  
+Mitte + Rechts sieht Linie     → leicht nach rechts korrigieren  
+Nur Links sieht Linie          → stark nach links korrigieren (steigt mit der Zeit)  
+Nur Rechts sieht Linie         → stark nach rechts korrigieren (steigt mit der Zeit)  
+Links + Rechts sehen Linie     → geradeaus (Kreuzung oder breite Linie)  
+Keine Linie                    → panisch in letzter bekannter Richtung suchen
 ```
 
 ---
@@ -22,12 +26,12 @@ Keine Linie        → panisch in letzter bekannter Richtung suchen
 - [Projektstruktur](#projektstruktur)
 - [Sensorlogik](#sensorlogik)
 - [Motorlogik](#motorlogik)
-- [Code-Dateien](#code-dateien)
+- [Regler-Logik](#regler-logik)
+- [Wichtige Einstellungen](#wichtige-einstellungen)
 - [Installation](#installation)
 - [Raspberry Pi vorbereiten](#raspberry-pi-vorbereiten)
 - [Programm starten](#programm-starten)
 - [Programm stoppen](#programm-stoppen)
-- [Wichtige Einstellungen](#wichtige-einstellungen)
 - [Debugging](#debugging)
 - [Häufige Fehler](#häufige-fehler)
 - [Nützliche Commands](#nützliche-commands)
@@ -38,20 +42,22 @@ Keine Linie        → panisch in letzter bekannter Richtung suchen
 
 ## Projektbeschreibung
 
-Dieses Projekt steuert einen kleinen Linienfolger-Roboter.
+Dieses Projekt steuert einen kleinen Linienfolger-Roboter mit einem proportionalen Regler.
 
-Der Roboter fährt mit einer einfachen Logik:
+Der Roboter fährt mit folgender Logik:
 
 | Sensorzustand | Aktion |
 |---|---|
-| Mitte aktiv | Geradeaus fahren |
-| Links aktiv | Rechte Motoren fahren |
-| Rechts aktiv | Linke Motoren fahren |
+| Nur Mitte aktiv | Geradeaus fahren |
+| Mitte + Links aktiv | Leicht nach links korrigieren |
+| Mitte + Rechts aktiv | Leicht nach rechts korrigieren |
+| Nur Links aktiv | Nach links korrigieren (Korrektur steigt mit der Zeit) |
+| Nur Rechts aktiv | Nach rechts korrigieren (Korrektur steigt mit der Zeit) |
+| Links + Rechts aktiv | Geradeaus fahren — wahrscheinlich Kreuzung oder breite Linie |
 | Kein Sensor aktiv | Linie in letzter bekannter Richtung suchen |
-| Links und rechts aktiv | Geradeaus fahren, weil eventuell Kreuzung oder breite Linie |
 
-Das Ganze ist bewusst simpel gehalten.  
-Der Roboter ist also eher **„mach einfach“**
+Das Ganze ist proportional geregelt: Je länger der Roboter falsch fährt, desto aggressiver korrigiert er.  
+Und ja, er kann auch rückwärts fahren. Features, keine Bugs.
 
 ---
 
@@ -67,40 +73,40 @@ Verwendete Hardware:
 - Externe Stromversorgung für die Motoren
 - Gemeinsame Masseverbindung zwischen Raspberry Pi, PCA9685 und Motortreiber
 
-Wichtig: Ohne gemeinsame Masse macht die Elektronik gerne Dinge, die niemand bestellt hat.
+**Wichtig:** Ohne gemeinsame Masse macht die Elektronik gerne Dinge, die niemand bestellt hat.
 
 ---
 
 ## Projektstruktur
 
-```text
-.
-├── main.py
-├── motor.py
-├── sensor.py
-├── car_controll.py
+```
+.  
+├── main.py  
+├── motor.py  
+├── sensor.py  
+├── car_control.py  
 └── README.md
 ```
 
-### `main.py`
+### main.py
 
 Startet das Programm.  
 Kurz gesagt: Der rote Startknopf, nur als Python-Datei.
 
-### `motor.py`
+### motor.py
 
 Enthält die komplette Motorsteuerung über das PCA9685-Modul.  
 Hier wird entschieden, welcher Motor bei welchem PWM-Kanal hängt.
 
-### `sensor.py`
+### sensor.py
 
 Liest die drei Liniensensoren aus.  
 Die Sensoren sagen dem Roboter, ob er noch auf Kurs ist oder ob er das Steuerrad drehen soll.
 
-### `car_controll.py`
+### car_control.py
 
-Enthält die eigentliche Fahrlogik.  
-Hier wird entschieden, ob der Roboter geradeaus fährt, korrigiert oder die Linie sucht.
+Enthält die eigentliche Fahrlogik mit dem proportionalen Regler.  
+Hier wird entschieden, wie stark korrigiert wird — und die Antwort ist: immer stärker, bis er wieder auf der Linie ist.
 
 ---
 
@@ -116,28 +122,26 @@ Die drei Sensoren sind so angeschlossen:
 
 Die Sensorwerte werden im Code als `0` oder `1` verarbeitet.
 
-```text
-1 = sieht Linie
+```
+1 = sieht Linie  
 0 = sieht keine Linie
 ```
 
-Falls die Sensoren genau andersherum reagieren, kannst du das in `sensor.py` ändern:
+Falls die Sensoren genau andersherum reagieren, kann das in `sensor.py` geändert werden:
 
 ```python
 SENSOR_AKTIV_BEDEUTET_KEINE_LINIE = False
 ```
 
-Auf `True` setzen, wenn `sensor.is_active` bedeutet, dass der Sensor **keine Linie** sieht:
+Auf `True` setzen, wenn `sensor.is_active` bedeutet, dass der Sensor **keine** Linie sieht:
 
 ```python
 SENSOR_AKTIV_BEDEUTET_KEINE_LINIE = True
 ```
 
-Merksatz:
-
-```text
-Wenn der Roboter genau das Gegenteil macht, ist höchst wahrscheinlich diese Einstellung schuld. Tut mir Leid, ist kein fehler sondern nh Feature.
-```
+**Merksatz:**  
+Wenn der Roboter genau das Gegenteil macht, ist höchstwahrscheinlich diese Einstellung schuld.  
+Tut mir leid, ist kein Fehler, sondern ein Feature.
 
 ---
 
@@ -145,7 +149,7 @@ Wenn der Roboter genau das Gegenteil macht, ist höchst wahrscheinlich diese Ein
 
 Die Motoren werden über das PCA9685-Modul gesteuert.
 
-Aktuelle Kanal-Zuordnung:
+**Aktuelle Kanal-Zuordnung:**
 
 | Motor | PCA9685-Kanäle |
 |---|---|
@@ -154,355 +158,86 @@ Aktuelle Kanal-Zuordnung:
 | Vorne rechts | 4 und 5 |
 | Hinten rechts | 6 und 7 |
 
-Die Motorsteuerung verwendet eine Panzersteuerung:
+Die Motorsteuerung verwendet eine **Panzersteuerung**:
 
-```text
-linke Geschwindigkeit  = komplette linke Fahrzeugseite
+```
+linke Geschwindigkeit  = komplette linke Fahrzeugseite  
 rechte Geschwindigkeit = komplette rechte Fahrzeugseite
 ```
 
-Beispiele:
+**Beispiele:**
 
 ```python
-fahren(25, 25)
+fahren(35, 35)   # Roboter fährt geradeaus
+fahren(35, 10)   # Roboter dreht leicht nach rechts
+fahren(-20, 35)  # Linke Seite rückwärts, rechts vorwärts → scharfe Linkskurve
 ```
 
-Roboter fährt geradeaus.
-
-```python
-fahren(25, 0)
-```
-
-Nur die linke Motorseite fährt.
-
-```python
-fahren(0, 25)
-```
-
-Nur die rechte Motorseite fährt.
-
-Falls bei „rechte Motoren“ links etwas fährt, Profi TIPP: Dann ist wahrscheinlich nur die Seitenzuordnung in `motor.py` vertauscht.
+Ja, negative Werte sind möglich. Der Roboter kann also rückwärts drehen, wenn die Kurve es verlangt.  
+Falls bei „rechte Motoren" links etwas fährt: Dann ist wahrscheinlich nur die Seitenzuordnung in `motor.py` vertauscht.
 
 ---
 
-## Code-Dateien
+## Regler-Logik
 
-### `main.py`
+Der P-Regler in `car_control.py` funktioniert so:
 
-```python
-import logging
+**Korrektur steigt mit der Zeit:**  
+Je länger der Roboter von der Linie abweicht, desto stärker wird gegensteuert.  
+Startet mit `KORREKTUR_START` und steigt pro Sekunde um `KORREKTUR_ANSTIEG_PRO_SEKUNDE`.
 
-from motor import initialisieren
-from car_controll import linie_folgen
+**Gnadenfrist:**  
+Wenn der Roboter gerade eben erst von der Mitte weggekommen ist (`GERADE_TOLERANZ`), wird nur sanft korrigiert.  
+Damit er nicht bei jeder kleinen Kurve sofort ausrastet.
 
-logging.basicConfig(level=logging.INFO)
-
-
-def hauptprogramm() -> None:
-    """
-    Startet das Roboterprogramm.
-    """
-    initialisieren()
-    linie_folgen(dauer=60)
-
-
-if __name__ == "__main__":
-    hauptprogramm()
-```
+**Rückwärtsfahren:**  
+Bei sehr starker Korrektur kann die Innenseite auch rückwärts fahren (`MINDEST_GESCHWINDIGKEIT_RUECKWAERTS`).  
+Das hilft bei engen Kurven. Features, keine Bugs.
 
 ---
 
-### `motor.py`
+## Wichtige Einstellungen
+
+Alle relevanten Werte befinden sich in `car_control.py`:
 
 ```python
-import board
-from adafruit_pca9685 import PCA9685
-import logging
+GRUND_GESCHWINDIGKEIT           = 35   # Grundgeschwindigkeit vorwärts
+MIN_MOTOR                       = -25  # Maximale Rückwärtsgeschwindigkeit
+MAX_MOTOR                       = 45   # Maximale Vorwärtsgeschwindigkeit
 
-protokoll = logging.getLogger(__name__)
+KORREKTUR_GERADE                = 8    # Kleine Korrektur wenn fast mittig
+KORREKTUR_START                 = 5    # Startkorrektur beim Erkennen einer Kurve
+KORREKTUR_MAX                   = 35   # Maximale Korrektur (ab hier dreht er fast auf der Stelle)
+KORREKTUR_ANSTIEG_PRO_SEKUNDE   = 12   # Wie schnell die Korrektur wächst
+KORREKTUR_FAST_MITTE            = 8    # Korrektur wenn Mitte + eine Seite aktiv
 
-# ── PWM-Hardware ────────────────────────────────────────────
-i2c = board.I2C()
-pwm_modul = PCA9685(i2c)
-
-
-# ── Hilfsfunktionen ─────────────────────────────────────────
-def begrenzen(wert: float, minimum: float, maximum: float) -> float:
-    """
-    Begrenzt einen Wert auf einen erlaubten Bereich.
-    """
-    return max(minimum, min(maximum, wert))
-
-
-def geschwindigkeit_zu_pwm(geschwindigkeit: float) -> int:
-    """
-    Wandelt eine Geschwindigkeit von 0 bis 100 Prozent
-    in einen PWM-Wert von 0 bis 65535 um.
-    """
-    return int((abs(geschwindigkeit) * 0xFFFF) / 100)
-
-
-def motor_setzen(kanal_vorwaerts: int, kanal_rueckwaerts: int, geschwindigkeit: float) -> None:
-    """
-    Steuert einen Motor über zwei PCA9685-Kanäle.
-
-    Positive Geschwindigkeit  → Motor dreht vorwärts
-    Negative Geschwindigkeit  → Motor dreht rückwärts
-    Geschwindigkeit = 0       → Motor steht
-    """
-    geschwindigkeit = begrenzen(geschwindigkeit, -100, 100)
-    pwm_wert = geschwindigkeit_zu_pwm(geschwindigkeit)
-
-    if geschwindigkeit >= 0:
-        pwm_modul.channels[kanal_vorwaerts].duty_cycle = 0
-        pwm_modul.channels[kanal_rueckwaerts].duty_cycle = pwm_wert
-    else:
-        pwm_modul.channels[kanal_vorwaerts].duty_cycle = pwm_wert
-        pwm_modul.channels[kanal_rueckwaerts].duty_cycle = 0
-
-
-def initialisieren() -> None:
-    """
-    Initialisiert das PWM-Modul und stoppt sicherheitshalber alle Motoren.
-    """
-    protokoll.info("PWM-Modul wird initialisiert")
-    pwm_modul.frequency = 50
-    alle_motoren_stoppen()
-
-
-def alle_motoren_stoppen() -> None:
-    """
-    Schaltet alle verwendeten PCA9685-Kanäle aus.
-    """
-    for kanal in range(8):
-        pwm_modul.channels[kanal].duty_cycle = 0
-
-
-# ── Motor-Zuordnung ─────────────────────────────────────────
-# Diese Zuordnung basiert auf dem ursprünglichen Code.
-# Wichtig: Wenn geradeaus_fahren() geradeaus fährt, passt diese Zuordnung.
-
-def motor_vorne_links_setzen(geschwindigkeit: float) -> None:
-    """
-    Steuert den Motor vorne links.
-    """
-    motor_setzen(2, 3, -geschwindigkeit)
-
-
-def motor_vorne_rechts_setzen(geschwindigkeit: float) -> None:
-    """
-    Steuert den Motor vorne rechts.
-    """
-    motor_setzen(4, 5, geschwindigkeit)
-
-
-def motor_hinten_links_setzen(geschwindigkeit: float) -> None:
-    """
-    Steuert den Motor hinten links.
-    """
-    motor_setzen(0, 1, geschwindigkeit)
-
-
-def motor_hinten_rechts_setzen(geschwindigkeit: float) -> None:
-    """
-    Steuert den Motor hinten rechts.
-    """
-    motor_setzen(6, 7, -geschwindigkeit)
-
-
-def fahren(linke_geschwindigkeit: float, rechte_geschwindigkeit: float) -> None:
-    """
-    Panzersteuerung:
-
-    linke_geschwindigkeit  = komplette linke Fahrzeugseite
-    rechte_geschwindigkeit = komplette rechte Fahrzeugseite
-    """
-    motor_vorne_links_setzen(linke_geschwindigkeit)
-    motor_hinten_links_setzen(linke_geschwindigkeit)
-
-    motor_vorne_rechts_setzen(rechte_geschwindigkeit)
-    motor_hinten_rechts_setzen(rechte_geschwindigkeit)
+GERADE_TOLERANZ                 = 0.3  # Sekunden Gnadenfrist nach Mitte
+REGEL_PAUSE                     = 0.009  # Pause pro Regelschleife
+SICHERHEITS_DAUER               = 60   # Maximale Laufzeit in Sekunden
+MINDEST_GESCHWINDIGKEIT_RUECKWAERTS = -20  # Grenze für Rückwärtsfahren
 ```
 
----
+**Bedeutung der wichtigsten Werte:**
 
-### `sensor.py`
+| Variable | Bedeutung |
+|---|---|
+| `GRUND_GESCHWINDIGKEIT` | Geschwindigkeit beim Geradeausfahren |
+| `KORREKTUR_MAX` | Maximale Korrekturstärke — ab hier dreht er fast auf der Stelle |
+| `KORREKTUR_ANSTIEG_PRO_SEKUNDE` | Wie aggressiv die Korrektur mit der Zeit wächst |
+| `GERADE_TOLERANZ` | Kurze Gnadenfrist nach Mitte, bevor stark korrigiert wird |
+| `MIN_MOTOR` | Wie weit eine Motorseite rückwärts darf |
 
-```python
-from gpiozero import LineSensor
+**Wenn der Roboter zu schnell ist:**  
+`GRUND_GESCHWINDIGKEIT` und `MAX_MOTOR` kleiner machen.
 
-# ── Sensor-Hardware ─────────────────────────────────────────
-sensor_mitte = LineSensor(15)
-sensor_links = LineSensor(14)
-sensor_rechts = LineSensor(23)
+**Wenn der Roboter bei Kurven zu langsam reagiert:**  
+`KORREKTUR_ANSTIEG_PRO_SEKUNDE` erhöhen.
 
-# Sensorlogik:
-# False = sensor.is_active bedeutet: Sensor sieht Linie
-# True  = sensor.is_active bedeutet: Sensor sieht KEINE Linie
-SENSOR_AKTIV_BEDEUTET_KEINE_LINIE = False
+**Wenn der Roboter bei jeder kleinen Kurve übersteuert:**  
+`KORREKTUR_ANSTIEG_PRO_SEKUNDE` verkleinern oder `GERADE_TOLERANZ` erhöhen.
 
-
-def sensor_sieht_linie(sensor: LineSensor) -> int:
-    """
-    Gibt 1 zurück, wenn der Sensor die Linie sieht.
-    Gibt 0 zurück, wenn der Sensor die Linie nicht sieht.
-
-    Die Konstante SENSOR_AKTIV_BEDEUTET_KEINE_LINIE kann die Logik umdrehen.
-    """
-    rohwert = bool(sensor.is_active)
-
-    if SENSOR_AKTIV_BEDEUTET_KEINE_LINIE:
-        return int(not rohwert)
-
-    return int(rohwert)
-
-
-def liniensensoren_lesen() -> tuple[int, int, int]:
-    """
-    Liest alle drei Liniensensoren aus.
-
-    Rückgabe:
-    links, mitte, rechts
-
-    Beispiel:
-    0, 1, 0 bedeutet:
-    Nur der mittlere Sensor sieht die Linie.
-    """
-    links = sensor_sieht_linie(sensor_links)
-    mitte = sensor_sieht_linie(sensor_mitte)
-    rechts = sensor_sieht_linie(sensor_rechts)
-
-    return links, mitte, rechts
-```
-
----
-
-### `car_controll.py`
-
-```python
-import time
-import logging
-
-from motor import fahren, alle_motoren_stoppen
-from sensor import liniensensoren_lesen
-
-protokoll = logging.getLogger(__name__)
-
-# ── Einstellungen ───────────────────────────────────────────
-GRUND_GESCHWINDIGKEIT = 25
-DREH_GESCHWINDIGKEIT = 30
-SUCH_GESCHWINDIGKEIT = 25
-
-
-# ── Direkte Fahrfunktionen ──────────────────────────────────
-def geradeaus_fahren() -> None:
-    """
-    Alle Motoren fahren mit gleicher Geschwindigkeit.
-    Der Roboter fährt geradeaus.
-    """
-    fahren(GRUND_GESCHWINDIGKEIT, GRUND_GESCHWINDIGKEIT)
-
-
-def linke_motoren_an() -> None:
-    """
-    Nur die linke Motorseite fährt.
-    Die rechte Motorseite steht.
-    """
-    fahren(DREH_GESCHWINDIGKEIT, 0)
-
-
-def rechte_motoren_an() -> None:
-    """
-    Nur die rechte Motorseite fährt.
-    Die linke Motorseite steht.
-    """
-    fahren(0, DREH_GESCHWINDIGKEIT)
-
-
-def linke_motoren_suche() -> None:
-    """
-    Nur die linke Motorseite fährt langsam beim Suchen der Linie.
-    """
-    fahren(SUCH_GESCHWINDIGKEIT, 0)
-
-
-def rechte_motoren_suche() -> None:
-    """
-    Nur die rechte Motorseite fährt langsam beim Suchen der Linie.
-    """
-    fahren(0, SUCH_GESCHWINDIGKEIT)
-
-
-# ── Bang-Bang-Linienfolger ──────────────────────────────────
-def linie_folgen(dauer: float = 60) -> None:
-    """
-    Einfache Bang-Bang-Steuerung für den Linienfolger.
-
-    Logik:
-    Mitte sieht Linie      → geradeaus fahren
-    Links sieht Linie      → rechte Motoren an
-    Rechts sieht Linie     → linke Motoren an
-    Keine Linie sichtbar   → in der letzten bekannten Richtung weitersuchen
-    """
-    startzeit = time.monotonic()
-
-    # letzte_position:
-    # -1 = linker Sensor war zuletzt aktiv
-    #  0 = mittlerer Sensor war zuletzt aktiv
-    #  1 = rechter Sensor war zuletzt aktiv
-    letzte_position = 0
-
-    protokoll.info("Bang-Bang-Linienfolger gestartet")
-
-    try:
-        while (time.monotonic() - startzeit) < dauer:
-            links, mitte, rechts = liniensensoren_lesen()
-
-            aktion = ""
-
-            if mitte == 1:
-                geradeaus_fahren()
-                letzte_position = 0
-                aktion = "GERADEAUS"
-
-            elif links == 1 and rechts == 0:
-                rechte_motoren_an()
-                letzte_position = -1
-                aktion = "RECHTE MOTOREN AN, weil LINKS aktiv"
-
-            elif rechts == 1 and links == 0:
-                linke_motoren_an()
-                letzte_position = 1
-                aktion = "LINKE MOTOREN AN, weil RECHTS aktiv"
-
-            elif links == 1 and rechts == 1:
-                geradeaus_fahren()
-                aktion = "GERADEAUS, breite Linie oder Kreuzung"
-
-            else:
-                if letzte_position == -1:
-                    rechte_motoren_suche()
-                    aktion = "SUCHE: RECHTE MOTOREN, weil zuletzt LINKS aktiv"
-
-                elif letzte_position == 1:
-                    linke_motoren_suche()
-                    aktion = "SUCHE: LINKE MOTOREN, weil zuletzt RECHTS aktiv"
-
-                else:
-                    rechte_motoren_suche()
-                    aktion = "SUCHE STANDARD: RECHTE MOTOREN"
-
-            print(f"Links={links} Mitte={mitte} Rechts={rechts} | {aktion}")
-
-            time.sleep(0.03)
-
-    except KeyboardInterrupt:
-        protokoll.info("Abbruch durch Nutzer")
-
-    finally:
-        alle_motoren_stoppen()
-        protokoll.info("Motoren gestoppt")
-```
+**Wenn der Roboter komplett eskaliert:**  
+Erst Strom aus, dann nachdenken.
 
 ---
 
@@ -558,9 +293,9 @@ sudo raspi-config
 
 Dann auswählen:
 
-```text
-Interface Options
-I2C
+```
+Interface Options  
+I2C  
 Enable
 ```
 
@@ -572,16 +307,16 @@ sudo reboot
 
 ---
 
-## I2C prüfen
+### I2C prüfen
 
-Installiere die I2C-Tools:
+I2C-Tools installieren:
 
 ```bash
 sudo apt update
 sudo apt install -y i2c-tools
 ```
 
-Prüfe, ob das PCA9685-Modul erkannt wird:
+Prüfen, ob das PCA9685-Modul erkannt wird:
 
 ```bash
 i2cdetect -y 1
@@ -589,7 +324,7 @@ i2cdetect -y 1
 
 Normalerweise sollte eine Adresse wie diese angezeigt werden:
 
-```text
+```
 40
 ```
 
@@ -599,7 +334,7 @@ Wenn keine Adresse angezeigt wird, überprüfe:
 - Stromversorgung
 - GND-Verbindung
 - I2C-Aktivierung in `raspi-config`
-- Ob das Modul überhaupt wach ist oder es schlafen geht wie ich gleich.
+- Ob das Modul überhaupt wach ist oder es schlafen geht wie ich gleich
 
 ---
 
@@ -618,7 +353,7 @@ python3 main.py
 ```
 
 Dann sollte der Roboter versuchen, der Linie zu folgen.  
-Betonung auf **versuchen**.
+Betonung auf versuchen.
 
 ---
 
@@ -626,7 +361,7 @@ Betonung auf **versuchen**.
 
 Das Programm kann mit folgender Tastenkombination gestoppt werden:
 
-```text
+```
 CTRL + C
 ```
 
@@ -636,68 +371,30 @@ Das ist wichtig, weil ein Roboter ohne Stop-Funktion einfach ein sehr kleines, s
 
 ---
 
-## Wichtige Einstellungen
-
-Die wichtigsten Geschwindigkeiten befinden sich in `car_controll.py`:
-
-```python
-GRUND_GESCHWINDIGKEIT = 25
-DREH_GESCHWINDIGKEIT = 30
-SUCH_GESCHWINDIGKEIT = 25
-```
-
-Bedeutung:
-
-| Variable | Bedeutung |
-|---|---|
-| `GRUND_GESCHWINDIGKEIT` | Geschwindigkeit beim Geradeausfahren |
-| `DREH_GESCHWINDIGKEIT` | Geschwindigkeit beim Korrigieren |
-| `SUCH_GESCHWINDIGKEIT` | Geschwindigkeit beim Suchen der Linie |
-
-Wenn der Roboter zu schnell ist:
-
-```text
-Werte kleiner machen.
-```
-
-Wenn der Roboter zu schwach korrigiert:
-
-```text
-DREH_GESCHWINDIGKEIT erhöhen.
-```
-
-Wenn der Roboter komplett eskaliert:
-
-```text
-Erst Strom aus, dann nachdenken.
-```
-
----
-
 ## Debugging
 
-Während das Programm läuft, werden die Sensorwerte ausgegeben:
+Während das Programm läuft, werden die Sensorwerte und die aktuelle Aktion ausgegeben:
 
-```text
+```
 Links=0 Mitte=1 Rechts=0 | GERADEAUS
-Links=1 Mitte=0 Rechts=0 | RECHTE MOTOREN AN, weil LINKS aktiv
-Links=0 Mitte=0 Rechts=1 | LINKE MOTOREN AN, weil RECHTS aktiv
+Links=1 Mitte=0 Rechts=0 | LINKS KORRIGIEREN | Korrektur=17
+Links=0 Mitte=0 Rechts=1 | RECHTS KORRIGIEREN | Korrektur=29
+Links=0 Mitte=1 Rechts=1 | LEICHT RECHTS | Korrektur=8
+Links=0 Mitte=0 Rechts=0 | SUCHE RECHTS | Korrektur=35
 ```
 
 Damit kann geprüft werden:
 
 - ob die Sensoren richtig erkannt werden
 - ob die richtige Fahraktion ausgeführt wird
-- ob die Motorseiten korrekt zugeordnet sind
+- wie groß die aktuelle Korrektur ist
 - ob der Roboter wirklich dumm ist oder nur falsch verkabelt
 
 ---
 
 ## Häufige Fehler
 
-### Import `board` nicht gefunden
-
-Installiere Adafruit Blinka:
+### `Import board` nicht gefunden
 
 ```bash
 python3 -m pip install adafruit-blinka
@@ -705,9 +402,7 @@ python3 -m pip install adafruit-blinka
 
 ---
 
-### Import `adafruit_pca9685` nicht gefunden
-
-Installiere die PCA9685-Bibliothek:
+### `Import adafruit_pca9685` nicht gefunden
 
 ```bash
 python3 -m pip install adafruit-circuitpython-pca9685
@@ -715,9 +410,7 @@ python3 -m pip install adafruit-circuitpython-pca9685
 
 ---
 
-### Import `gpiozero` nicht gefunden
-
-Installiere GPIOZero:
+### `Import gpiozero` nicht gefunden
 
 ```bash
 python3 -m pip install gpiozero
@@ -738,8 +431,6 @@ Dann bleibt nur noch Hardware. Also das Lustige.
 
 ### PCA9685 wird nicht erkannt
 
-Prüfen:
-
 ```bash
 i2cdetect -y 1
 ```
@@ -759,17 +450,6 @@ Falls keine Adresse angezeigt wird:
 
 Dann ist die Seitenzuordnung in `motor.py` vertauscht.
 
-Aktuelle Funktion:
-
-```python
-def fahren(linke_geschwindigkeit: float, rechte_geschwindigkeit: float) -> None:
-    motor_vorne_links_setzen(linke_geschwindigkeit)
-    motor_hinten_links_setzen(linke_geschwindigkeit)
-
-    motor_vorne_rechts_setzen(rechte_geschwindigkeit)
-    motor_hinten_rechts_setzen(rechte_geschwindigkeit)
-```
-
 Zum Tauschen der Seiten:
 
 ```python
@@ -780,6 +460,19 @@ def fahren(linke_geschwindigkeit: float, rechte_geschwindigkeit: float) -> None:
     motor_vorne_rechts_setzen(linke_geschwindigkeit)
     motor_hinten_rechts_setzen(linke_geschwindigkeit)
 ```
+
+---
+
+### Roboter dreht sich wild auf der Stelle
+
+`KORREKTUR_MAX` ist wahrscheinlich zu hoch oder `KORREKTUR_ANSTIEG_PRO_SEKUNDE` zu groß.  
+Werte schrittweise reduzieren, bis er sich benimmt.
+
+---
+
+### Roboter reagiert zu träge auf Kurven
+
+`KORREKTUR_ANSTIEG_PRO_SEKUNDE` erhöhen oder `GERADE_TOLERANZ` verkleinern.
 
 ---
 
@@ -873,7 +566,7 @@ git add .
 ### Commit erstellen
 
 ```bash
-git commit -m "Linienfolger Roboter hinzugefügt"
+git commit -m "P-Regler Linienfolger"
 ```
 
 ### Änderungen hochladen
@@ -887,34 +580,6 @@ Falls der Branch `main` noch nicht existiert oder neu gesetzt werden muss:
 ```bash
 git branch -M main
 git push -u origin main
-```
-
----
-
-## README auf dem Raspberry Pi erstellen
-
-Datei öffnen:
-
-```bash
-nano README.md
-```
-
-Inhalt einfügen.
-
-Speichern:
-
-```text
-CTRL + O
-ENTER
-CTRL + X
-```
-
-Danach zu GitHub hinzufügen:
-
-```bash
-git add README.md
-git commit -m "README hinzugefügt"
-git push
 ```
 
 ---
