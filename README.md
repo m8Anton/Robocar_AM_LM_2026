@@ -70,7 +70,6 @@ Verwendete Hardware:
 - 3x Liniensensoren
 - 4x DC-Motoren
 - Motortreiber / Motormodule
-- Externe Stromversorgung für die Motoren
 - Gemeinsame Masseverbindung zwischen Raspberry Pi, PCA9685 und Motortreiber
 
 **Wichtig:** Ohne gemeinsame Masse macht die Elektronik gerne Dinge, die niemand bestellt hat.
@@ -246,14 +245,15 @@ Erst Strom aus, dann nachdenken.
 ### 1. Repository klonen
 
 ```bash
-git clone https://github.com/DEIN-NAME/DEIN-REPOSITORY.git
+git clone https://github.com/m8Anton/Robocar_AM_LM_2026
 cd DEIN-REPOSITORY
 ```
 
 Beispiel:
 
 ```bash
-git clone https://github.com/dein-name/linienfolger-roboter.git
+git clone 
+https://github.com/m8Anton/Robocar_AM_LM_2026
 cd linienfolger-roboter
 ```
 
