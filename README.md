@@ -238,6 +238,9 @@ MINDEST_GESCHWINDIGKEIT_RUECKWAERTS = -20  # Grenze für Rückwärtsfahren
 **Wenn der Roboter komplett eskaliert:**  
 Erst Strom aus, dann nachdenken.
 
+**Wenn ihr mein Code anschaut,merkt ihr eine Einstellung die Wenig Sinn macht**
+Die Rechten Motoren drehen schneller als die Linken.
+
 ---
 
 ## Installation
@@ -438,7 +441,6 @@ i2cdetect -y 1
 Falls keine Adresse angezeigt wird:
 
 - I2C aktivieren
-- Verkabelung prüfen
 - SDA und SCL prüfen
 - GND verbinden
 - Stromversorgung prüfen
